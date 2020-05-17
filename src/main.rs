@@ -31,7 +31,7 @@ fn main() {
     let format = wgpu::TextureFormat::Bgra8UnormSrgb;
     
     use futures::executor::block_on;
-    let mut renderer = block_on(Renderer::new(10000, 15000, format));
+    let mut renderer = block_on(Renderer::new(10000, 10000, 10000, format));
 
     let mut window = window::Window::new(&event_loop, format, renderer.get_device());
 
@@ -43,8 +43,8 @@ fn main() {
     renderer.load_texture(include_bytes!("textures/happy-tree.png"), String::from("happy-tree.png"));
 
     let t0 = Triangle::new(Point{x:-0.3, y:-0.3}, Point{x: 0.3, y:-0.3}, Point{x: 0.0, y: 0.3}, None, Some(&[0.1,0.0,0.8,0.5]));
-    let r1 = Rectangle::new(Point{x:-0.5, y: 0.5}, Point{x: 0.5, y:-0.5}, Some(String::from("happy-tree.png")), None);
-    let r2 = Rectangle::new(Point{x:-0.5, y: 0.5}, Point{x: 0.5, y:-0.5}, Some(String::from("awesomeface.png")), None);
+    let r1 = Rectangle::new(Point{x:-0.5, y: 0.5}, Point{x: 0.5, y:-0.5}, DrawType::Outline, Some(String::from("happy-tree.png")), None);
+    let r2 = Rectangle::new(Point{x:-0.5, y: 0.5}, Point{x: 0.5, y:-0.5}, DrawType::Filled, Some(String::from("awesomeface.png")), None);
     let poly = Polygon::new(
         &[
             Point{x: 0.00, y: 1.00},

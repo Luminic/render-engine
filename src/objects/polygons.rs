@@ -35,18 +35,38 @@ fn gen_tex_coords(vertices: &mut[Vertex]) {
     }
 }
 
+#[derive(PartialEq)]
+pub enum DrawType {
+    Filled,
+    Outline,
+}
+
 pub struct Rectangle {
-    indices: [u16; 6],
+    indices: [u16; 8],
     vertices: [Vertex; 4],
-    texture:Option<String>,
+    texture: Option<String>,
+    draw_type: DrawType,
 }
 
 impl Rectangle {
-    pub fn new(top_left:Point, bottom_right:Point, texture:Option<String>, color:Option<&[f32;4]>) -> Self {
-        let indices: [u16; 6] = [
-            0, 1, 3,
-            1, 3, 2,
-        ];
+    pub fn new(top_left:Point, bottom_right:Point, draw_type: DrawType, texture:Option<String>, color:Option<&[f32;4]>) -> Self {
+        let indices = match draw_type {
+            DrawType::Filled => {
+                [
+                    0, 1, 3,
+                    1, 3, 2,
+                    0, 0, // Padding
+                ]
+            },
+            DrawType::Outline => {
+                [
+                    0, 1,
+                    1, 2,
+                    2, 3,
+                    3, 0,
+                ]
+            },
+        };
 
         let vertices:[Vertex; 4];
 
@@ -65,6 +85,7 @@ impl Rectangle {
                         indices,
                         vertices,
                         texture,
+                        draw_type: DrawType::Filled,
                     };
                 }
             }
@@ -81,14 +102,48 @@ impl Rectangle {
         Self {
             indices,
             vertices,
-            texture
+            texture,
+            draw_type,
+        }
+    }
+
+    pub fn change_draw_type(&mut self, draw_type: DrawType) {
+        self.draw_type = draw_type;
+        match &self.draw_type {
+            DrawType::Filled => {
+                self.indices = [
+                    0, 1, 3,
+                    1, 3, 2,
+                    0, 0, // Padding
+                ];
+            },
+            DrawType::Outline => {
+                self.indices = [
+                    0, 1,
+                    1, 2,
+                    2, 3,
+                    3, 0,
+                ];
+            },
         }
     }
 }
 
 impl<'a> renderer::Drawable<'a> for Rectangle {
+    fn get_primitive_type(&self) -> renderer::SupportedPrimitiveTopology {
+        match &self.draw_type {
+            DrawType::Filled => renderer::SupportedPrimitiveTopology::TriangleList,
+            DrawType::Outline => renderer::SupportedPrimitiveTopology::LineList,
+        }
+    }
+
     fn get_vertex_information(&'a self) -> (&'a[u16], &'a[Vertex]) {
-        (&self.indices, &self.vertices)
+        match self.draw_type {
+            // Only return a string slice from 0..6 for the indicies if drawtype is filled
+            // Otherwise, the two padding indices will be interpreted as 2/3 vertices of a triangle and mess up all later draw calls
+            DrawType::Filled => (&self.indices[..6], &self.vertices),
+            DrawType::Outline => (&self.indices, &self.vertices),
+        }
     }
 
     fn get_texture_name(&self) -> Option<String> {
@@ -102,7 +157,8 @@ impl<'a> renderer::Drawable<'a> for Rectangle {
 pub struct Triangle {
     indices: [u16; 3],
     vertices: [Vertex; 3],
-    texture:Option<String>,
+    texture: Option<String>,
+    draw_type: DrawType,
 }
 
 impl Triangle {
@@ -125,6 +181,7 @@ impl Triangle {
                         indices,
                         vertices,
                         texture,
+                        draw_type: DrawType::Filled,
                     };
                 }
             }
@@ -141,12 +198,20 @@ impl Triangle {
         Self {
             indices,
             vertices,
-            texture
+            texture,
+            draw_type: DrawType::Filled,
         }
     }
 }
 
 impl<'a> renderer::Drawable<'a> for Triangle {
+    fn get_primitive_type(&self) -> renderer::SupportedPrimitiveTopology {
+        match &self.draw_type {
+            DrawType::Filled => renderer::SupportedPrimitiveTopology::TriangleList,
+            DrawType::Outline => renderer::SupportedPrimitiveTopology::LineList,
+        }
+    }
+
     fn get_vertex_information(&'a self) -> (&'a[u16], &'a[Vertex]) {
         (&self.indices, &self.vertices)
     }
@@ -250,7 +315,8 @@ fn ear_clipping(
 pub struct Polygon {
     indices: Vec<u16>,
     vertices: Vec<Vertex>,
-    texture:Option<String>,
+    texture: Option<String>,
+    draw_type: DrawType,
 }
 
 impl Polygon {
@@ -281,6 +347,7 @@ impl Polygon {
                         indices,
                         vertices,
                         texture,
+                        draw_type: DrawType::Filled,
                     };
                 }
             }
@@ -292,12 +359,20 @@ impl Polygon {
         Self {
             indices,
             vertices,
-            texture
+            texture,
+            draw_type: DrawType::Filled,
         }
     }
 }
 
 impl<'a> renderer::Drawable<'a> for Polygon {
+    fn get_primitive_type(&self) -> renderer::SupportedPrimitiveTopology {
+        match &self.draw_type {
+            DrawType::Filled => renderer::SupportedPrimitiveTopology::TriangleList,
+            DrawType::Outline => renderer::SupportedPrimitiveTopology::LineList,
+        }
+    }
+
     fn get_vertex_information(&'a self) -> (&'a[u16], &'a[Vertex]) {
         (&self.indices, &self.vertices)
     }

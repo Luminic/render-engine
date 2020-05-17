@@ -36,8 +36,19 @@ mod shader {
     }
 }
 
+#[derive(PartialEq)]
+pub enum SupportedPrimitiveTopology {
+    TriangleList,
+    LineList,
+}
+
 pub trait Drawable<'a> {
+    fn get_primitive_type(&self) -> SupportedPrimitiveTopology;
+
+    // If primitive type is TriangleList, the number of indices must be a multiple of 3
+    // If primitive type is LineList, the number of indices must be a multiple of 2
     fn get_vertex_information(&'a self) -> (&'a[u16], &'a[Vertex]);
+
     fn get_texture_name(&self) -> Option<String>;
 }
 
@@ -81,17 +92,23 @@ pub struct Renderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
 
-    triangle_render_pipeline: wgpu::RenderPipeline,
+    triangles_render_pipeline: wgpu::RenderPipeline,
+    max_triangle_indices: u32,
+    num_triangle_indices: u32,
+    triangles_index_buffer: wgpu::Buffer,
+    triangles_index_buffer_write_mapping: wgpu::BufferWriteMapping,
+    
+    lines_render_pipeline: wgpu::RenderPipeline,
+    max_line_indices: u32,
+    num_line_indices: u32,
+    lines_index_buffer: wgpu::Buffer,
+    lines_index_buffer_write_mapping: wgpu::BufferWriteMapping,
 
+    // Vertices are shared between triangles and lines because there is no difference between a vertex for a line and a verex for a tri
+    max_vertices: u32,
+    num_vertices: u32,
     vertex_buffer: wgpu::Buffer,
     vertex_buffer_write_mapping: wgpu::BufferWriteMapping,
-    index_buffer: wgpu::Buffer,
-    index_buffer_write_mapping: wgpu::BufferWriteMapping,
-
-    max_vertices: u32,
-    max_indices: u32,
-    num_vertices: u32,
-    num_indices: u32,
     
     loaded_textures: HashMap<String, Box<Texture>>,
     draw_call_textures: [Option<String>; MAX_TEXTURES_PER_DRAW_CALL],
@@ -110,7 +127,7 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub async fn new(max_vertices: u32, max_indices: u32, format: wgpu::TextureFormat) -> Self {
+    pub async fn new(max_vertices: u32, max_triangle_indices: u32, max_line_indices: u32, format: wgpu::TextureFormat) -> Self {
         let adapter = wgpu::Adapter::request(
             &wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::Default,
@@ -297,48 +314,56 @@ impl Renderer {
             }
         );
 
-        let triangle_render_pipeline = device.create_render_pipeline(
-            &wgpu::RenderPipelineDescriptor {
-                layout: &render_pipeline_layout,
-                vertex_stage: wgpu::ProgrammableStageDescriptor {
-                    module: &vs_module,
-                    entry_point: "main",
-                },
-                fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
-                    module: &fs_module,
-                    entry_point: "main",
-                }),
-                rasterization_state: Some(wgpu::RasterizationStateDescriptor {
-                    front_face: wgpu::FrontFace::Ccw,
-                    cull_mode: wgpu::CullMode::None,
-                    depth_bias: 0,
-                    depth_bias_slope_scale: 0.0,
-                    depth_bias_clamp: 0.0,
-                }),
-                primitive_topology: wgpu::PrimitiveTopology::TriangleList,
-                color_states: &[
-                    wgpu::ColorStateDescriptor {
-                        format: format,//sc_desc.format,
-                        color_blend: wgpu::BlendDescriptor {
-                            src_factor: wgpu::BlendFactor::SrcAlpha,
-                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                            operation: wgpu::BlendOperation::Add,
-                        },
-                        alpha_blend: wgpu::BlendDescriptor::REPLACE,
-                        write_mask: wgpu::ColorWrite::ALL,
-                    },
-                ],
-                depth_stencil_state: None,
-                vertex_state: wgpu::VertexStateDescriptor {
-                    index_format: wgpu::IndexFormat::Uint16,
-                    vertex_buffers: &[
-                        Vertex::desc(),
-                    ],
-                },
-                sample_count: 1,
-                sample_mask: !0,
-                alpha_to_coverage_enabled: false,
+        let mut render_pipeline_desc = wgpu::RenderPipelineDescriptor {
+            layout: &render_pipeline_layout,
+            vertex_stage: wgpu::ProgrammableStageDescriptor {
+                module: &vs_module,
+                entry_point: "main",
             },
+            fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
+                module: &fs_module,
+                entry_point: "main",
+            }),
+            rasterization_state: Some(wgpu::RasterizationStateDescriptor {
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: wgpu::CullMode::None,
+                depth_bias: 0,
+                depth_bias_slope_scale: 0.0,
+                depth_bias_clamp: 0.0,
+            }),
+            primitive_topology: wgpu::PrimitiveTopology::TriangleList,
+            color_states: &[
+                wgpu::ColorStateDescriptor {
+                    format: format,//sc_desc.format,
+                    color_blend: wgpu::BlendDescriptor {
+                        src_factor: wgpu::BlendFactor::SrcAlpha,
+                        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                        operation: wgpu::BlendOperation::Add,
+                    },
+                    alpha_blend: wgpu::BlendDescriptor::REPLACE,
+                    write_mask: wgpu::ColorWrite::ALL,
+                },
+            ],
+            depth_stencil_state: None,
+            vertex_state: wgpu::VertexStateDescriptor {
+                index_format: wgpu::IndexFormat::Uint16,
+                vertex_buffers: &[
+                    Vertex::desc(),
+                ],
+            },
+            sample_count: 1,
+            sample_mask: !0,
+            alpha_to_coverage_enabled: false,
+        };
+
+        let triangles_render_pipeline = device.create_render_pipeline(
+            &render_pipeline_desc,
+        );
+
+        render_pipeline_desc.primitive_topology = wgpu::PrimitiveTopology::LineList;
+
+        let lines_render_pipeline = device.create_render_pipeline(
+            &render_pipeline_desc,
         );
 
         // let vertex_buffer = device.create_buffer_with_data(
@@ -358,43 +383,61 @@ impl Renderer {
             (std::mem::size_of::<Vertex>() as u64 * max_vertices as u64) as wgpu::BufferAddress,
         );
         
-        // let index_buffer = device.create_buffer_with_data(
+        // let triangles_index_buffer = device.create_buffer_with_data(
         //     bytemuck::cast_slice(INDICES),
         //     wgpu::BufferUsage::INDEX,
         // );
             
-        let index_buffer = device.create_buffer(
+        let triangles_index_buffer = device.create_buffer(
             &wgpu::BufferDescriptor {
-                label: Some("Index buffer"),
-                size: (std::mem::size_of::<u16>() as u64 * max_indices as u64) as wgpu::BufferAddress,
+                label: Some("Triangles index buffer"),
+                size: (std::mem::size_of::<u16>() as u64 * max_triangle_indices as u64) as wgpu::BufferAddress,
                 usage: wgpu::BufferUsage::INDEX | wgpu::BufferUsage::MAP_WRITE,
             }
         );
-        let future_index_write_mapping = index_buffer.map_write(
+        let future_triangles_index_write_mapping = triangles_index_buffer.map_write(
             0,
-            (std::mem::size_of::<u16>() as u64 * max_indices as u64) as wgpu::BufferAddress,
+            (std::mem::size_of::<u16>() as u64 * max_triangle_indices as u64) as wgpu::BufferAddress,
+        );
+
+        let lines_index_buffer = device.create_buffer(
+            &wgpu::BufferDescriptor {
+                label: Some("Lines index buffer"),
+                size: (std::mem::size_of::<u16>() as u64 * max_line_indices as u64) as wgpu::BufferAddress,
+                usage: wgpu::BufferUsage::INDEX | wgpu::BufferUsage::MAP_WRITE,
+            }
+        );
+        let future_lines_index_buffer_write_mapping = lines_index_buffer.map_write(
+            0,
+            (std::mem::size_of::<u16>() as u64 * max_line_indices as u64) as wgpu::BufferAddress,
         );
         
         device.poll(wgpu::Maintain::Wait);
         let vertex_buffer_write_mapping = future_vertex_write_mapping.await.unwrap();
-        let index_buffer_write_mapping = future_index_write_mapping.await.unwrap();
-            
+        let triangles_index_buffer_write_mapping = future_triangles_index_write_mapping.await.unwrap();
+        let lines_index_buffer_write_mapping = future_lines_index_buffer_write_mapping.await.unwrap();
+
         Self {
             device,
             queue,
 
-            triangle_render_pipeline,
-
+            triangles_render_pipeline,
+            max_triangle_indices,
+            num_triangle_indices: 0,
+            triangles_index_buffer,
+            triangles_index_buffer_write_mapping,
+            
+            lines_render_pipeline,
+            max_line_indices,
+            num_line_indices: 0,
+            lines_index_buffer,
+            lines_index_buffer_write_mapping,
+            
+            max_vertices,
+            num_vertices: 0,
             vertex_buffer,
             vertex_buffer_write_mapping,
-            index_buffer,
-            index_buffer_write_mapping,
-
-            max_vertices,
-            max_indices,
-            num_vertices: 0,
-            num_indices: 0,
-
+            
             loaded_textures,
             draw_call_textures,
 
@@ -445,7 +488,7 @@ impl Renderer {
     fn render(&mut self) {
         let frame = match &self.frame {
             Some(x) => x.get_frame(),
-            None => panic!(),
+            None => panic!("No frame to render to"),
         };
 
         let mut encoder = self.device.create_command_encoder(
@@ -455,7 +498,8 @@ impl Renderer {
         );
 
         self.vertex_buffer.unmap();
-        self.index_buffer.unmap();
+        self.triangles_index_buffer.unmap();
+        self.lines_index_buffer.unmap();
 
         macro_rules! create_texture_bind_group_binding {
             ($binding:expr) => {{
@@ -519,17 +563,22 @@ impl Renderer {
             },
         );
 
-        render_pass.set_pipeline(&self.triangle_render_pipeline);
         render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
         render_pass.set_bind_group(1, &self.texture_sampler_bind_group, &[]);
         render_pass.set_bind_group(2, &texture_bind_group, &[]);
-        
         render_pass.set_vertex_buffer(0, &self.vertex_buffer, 0, 0);
-        render_pass.set_index_buffer(&self.index_buffer, 0, 0);
-        render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+        
+        render_pass.set_pipeline(&self.triangles_render_pipeline);
+        render_pass.set_index_buffer(&self.triangles_index_buffer, 0, 0);
+        render_pass.draw_indexed(0..self.num_triangle_indices, 0, 0..1);
+        self.num_triangle_indices = 0;
+        
+        render_pass.set_pipeline(&self.lines_render_pipeline);
+        render_pass.set_index_buffer(&self.lines_index_buffer, 0, 0);
+        render_pass.draw_indexed(0..self.num_line_indices, 0, 0..1);
+        self.num_line_indices = 0;
+        
         self.num_vertices = 0;
-        self.num_indices = 0;
-
         drop(render_pass);
 
         self.queue.submit(
@@ -541,15 +590,21 @@ impl Renderer {
             (std::mem::size_of::<Vertex>() as u64 * self.max_vertices as u64) as wgpu::BufferAddress,
         );
 
-        let future_index_write_mapping = self.index_buffer.map_write(
+        let future_triangles_index_write_mapping = self.triangles_index_buffer.map_write(
             0,
-            (std::mem::size_of::<u16>() as u64 * self.max_indices as u64) as wgpu::BufferAddress,
+            (std::mem::size_of::<u16>() as u64 * self.max_triangle_indices as u64) as wgpu::BufferAddress,
+        );
+
+        let future_lines_index_write_mapping = self.lines_index_buffer.map_write(
+            0,
+            (std::mem::size_of::<u16>() as u64 * self.max_line_indices as u64) as wgpu::BufferAddress,
         );
         
         self.device.poll(wgpu::Maintain::Wait);
         use futures::executor::block_on;
         self.vertex_buffer_write_mapping = block_on(future_vertex_write_mapping).unwrap();
-        self.index_buffer_write_mapping = block_on(future_index_write_mapping).unwrap();
+        self.triangles_index_buffer_write_mapping = block_on(future_triangles_index_write_mapping).unwrap();
+        self.lines_index_buffer_write_mapping = block_on(future_lines_index_write_mapping).unwrap();
 
         self.nr_draws_this_frame += 1;
     }
@@ -573,13 +628,29 @@ impl Renderer {
         }
     }
 
-    fn add_to_index_buffer(&mut self, indices: &[u16]) {
-        let index_buffer_data = self.index_buffer_write_mapping.as_slice();
+    fn add_to_index_buffer(&mut self, indices: &[u16], primitive: SupportedPrimitiveTopology) {
+        let index_buffer_data;
+        let num_current_indices;
+        match primitive {
+            SupportedPrimitiveTopology::TriangleList => {
+                index_buffer_data = self.triangles_index_buffer_write_mapping.as_slice();
+                num_current_indices = self.num_triangle_indices as usize;
+            },
+            SupportedPrimitiveTopology::LineList => {
+                index_buffer_data = self.lines_index_buffer_write_mapping.as_slice();
+                num_current_indices = self.num_line_indices as usize;
+            },
+        }
+
         let range = 
-            (self.num_indices as usize * std::mem::size_of::<u16>())..
-            ((self.num_indices as usize + indices.len())*std::mem::size_of::<u16>());
+            (num_current_indices as usize * std::mem::size_of::<u16>())..
+            ((num_current_indices as usize + indices.len())*std::mem::size_of::<u16>());
         index_buffer_data[range].copy_from_slice(bytemuck::cast_slice(indices));
-        self.num_indices += indices.len() as u32;
+
+        match primitive {
+            SupportedPrimitiveTopology::TriangleList => self.num_triangle_indices += indices.len() as u32,
+            SupportedPrimitiveTopology::LineList => self.num_line_indices += indices.len() as u32,
+        }
     }
 
     fn add_to_vertex_buffer(&mut self, vertices: &[Vertex]) {
@@ -593,12 +664,25 @@ impl Renderer {
 
     pub fn draw<'a, T:Drawable<'a>>(&mut self, shape: &'a T, transformation: Option<&UsableTransform>) {
         let (shape_indices, shape_vertices) = shape.get_vertex_information::<>();
-
-        if shape_indices.len() > (self.max_indices-self.num_indices) as usize {
-            if shape_indices.len() > self.max_indices as usize {
-                panic!("shape has more indices than the renderer's max_indices");
-            }
-            self.render();
+        let primitive = shape.get_primitive_type();
+        
+        match primitive {
+            SupportedPrimitiveTopology::TriangleList => {
+                if shape_indices.len() > (self.max_triangle_indices-self.num_triangle_indices) as usize {
+                    if shape_indices.len() > self.max_triangle_indices as usize {
+                        panic!("shape has more indices than the renderer's max_triangle_indices");
+                    }
+                    self.render();
+                }
+            },
+            SupportedPrimitiveTopology::LineList => {
+                if shape_indices.len() > (self.max_line_indices-self.num_line_indices) as usize {
+                    if shape_indices.len() > self.max_line_indices as usize {
+                        panic!("shape has more indices than the renderer's max_line_indices");
+                    }
+                    self.render();
+                }
+            },
         }
         if shape_vertices.len() > (self.max_vertices-self.num_vertices) as usize {
             if shape_vertices.len() > self.max_vertices as usize {
@@ -630,7 +714,7 @@ impl Renderer {
                     // Render the current information, then add the texture to the new empty array
                     if i == self.draw_call_textures.len()-1 {
                         self.render();
-                        // Put the texture in the first slot int he textures array
+                        // Put the texture in the first slot in the textures array
                         // The array should be cleared in render(); if it isn't, something has gone terribly wrong
                         assert_eq!(self.draw_call_textures[0], None);
                         self.draw_call_textures[0] = texture_name;
@@ -657,7 +741,7 @@ impl Renderer {
                     }
                 }
                 self.add_to_vertex_buffer(&vertices);
-                self.add_to_index_buffer(&indices);
+                self.add_to_index_buffer(&indices, primitive);
             },
             None => {
                 match transformation {
@@ -668,11 +752,11 @@ impl Renderer {
                             UsableTransform::transform_point_with_matrix(&mut vertex.position, &transformation_matrix)
                         }
                         self.add_to_vertex_buffer(&vertices);
-                        self.add_to_index_buffer(&indices);
+                        self.add_to_index_buffer(&indices, primitive);
                     }
                     None => {
                         self.add_to_vertex_buffer(shape_vertices);
-                        self.add_to_index_buffer(&indices);
+                        self.add_to_index_buffer(&indices, primitive);
                     }
                 }
                 
