@@ -1,0 +1,17 @@
+[package]
+name = "render-engine"
+version = "0.1.0"
+authors = ["Luminic <lukas.dot.py@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bytemuck = "1.2.0"
+cgmath = "0.17"
+failure = "0.1"
+futures = "0.3"
+glsl-to-spirv = "0.1"
+image = "0.23"
+winit = "0.20"
+wgpu = "0.5"
