@@ -1,4 +1,30 @@
 use winit::event_loop::EventLoop;
+use std::fmt;
+
+#[derive(Debug)]
+pub enum WindowError {
+    UninitializedSwapChain,
+    TimeOut,
+}
+
+impl fmt::Display for WindowError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            WindowError::UninitializedSwapChain => {
+                write!(f, "Swap chain has not been initialized yet")
+            },
+            WindowError::TimeOut => {
+                write!(f, "The GPU timed out when attempting to acquire the next texture or if a previous output is still alive.")
+            }
+        }
+    }
+}
+
+impl From<wgpu::TimeOut> for WindowError {
+    fn from(err: wgpu::TimeOut) -> WindowError {
+        WindowError::TimeOut
+    }
+}
 
 pub struct Window {
     pub winit_window: winit::window::Window,
@@ -44,16 +70,22 @@ impl Window {
         &self.surface
     }
 
-    pub fn get_next_frame(&mut self) -> wgpu::SwapChainOutput {
-        self.swap_chain.as_mut().unwrap().get_next_texture().unwrap()
+    pub fn get_next_frame(&mut self) -> Result<wgpu::SwapChainOutput, WindowError> {
+        match &mut self.swap_chain {
+            Some(swap_chain) => {
+                Ok(swap_chain.get_next_texture()?)
+            },
+            None => Err(WindowError::UninitializedSwapChain),
+        }
+        // self.swap_chain.as_mut().ok_or()
+        // .unwrap().get_next_texture().unwrap()
     }
 
     // Will initialize swapchain if not already initialized
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>, device: &wgpu::Device) {
         self.size = new_size;
-        match &self.swap_chain {
-            Some(_) => {
-                let sc_desc = self.sc_desc.as_mut().unwrap();
+        match &mut self.sc_desc {
+            Some(sc_desc) => {
                 sc_desc.width = new_size.width;
                 sc_desc.height = new_size.height;
                 self.swap_chain = Some(device.create_swap_chain(&self.surface, sc_desc));

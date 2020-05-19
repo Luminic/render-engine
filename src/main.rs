@@ -78,7 +78,7 @@ fn main() {
     );
     let b0 = BezierCurve::new(
         &bezier_points,
-        50, 0.01, None, Some(&[0.0,1.0,1.0,1.0])
+        1000, 0.01, None, Some(&[0.0,1.0,1.0,1.0])
     );
 
     event_loop.run(move |event, _, control_flow| {
@@ -111,7 +111,10 @@ fn main() {
                 }
             }
             Event::RedrawRequested(_) => {
-                let frame = DrawableFrame::from_sc_output(window.get_next_frame());
+                let frame = DrawableFrame::from_sc_output(window.get_next_frame().unwrap());
+                camera_controller.update_camera(&mut camera);
+                renderer.update(&camera);
+                
                 renderer.begin_render(frame);
                 renderer.draw(&poly,
                     Some(&UsableTransform{
@@ -143,8 +146,6 @@ fn main() {
                 };
                 renderer.draw(&l1, Some(&bezier_transform));
                 renderer.draw(b0.get_line_strip(), Some(&bezier_transform));
-                camera_controller.update_camera(&mut camera);
-                renderer.update(&camera);
                 renderer.end_render();
             }
             Event::MainEventsCleared => {
