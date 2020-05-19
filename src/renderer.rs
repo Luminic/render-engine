@@ -110,11 +110,11 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub async fn new(max_vertices: u32, max_indices: u32, format: wgpu::TextureFormat) -> Self {
+    pub async fn new(max_vertices: u32, max_indices: u32, format: wgpu::TextureFormat, compatible_surface: Option<&wgpu::Surface>) -> Self {
         let adapter = wgpu::Adapter::request(
             &wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::Default,
-                compatible_surface: None,//Some(&surface),
+                compatible_surface,
             },
             wgpu::BackendBit::PRIMARY,
         ).await.unwrap();

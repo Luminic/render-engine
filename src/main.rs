@@ -35,9 +35,12 @@ fn main() {
     let format = wgpu::TextureFormat::Bgra8UnormSrgb;
     
     use futures::executor::block_on;
-    let mut renderer = block_on(Renderer::new(10000, 15000, format));
+    
+    let mut window = window::Window::new(&event_loop, format);
 
-    let mut window = window::Window::new(&event_loop, format, renderer.get_device());
+    let mut renderer = block_on(Renderer::new(10000, 15000, format, Some(window.get_surface())));
+
+    window.init_swapchain(renderer.get_device());
 
     let mut camera = Camera::new();
 
