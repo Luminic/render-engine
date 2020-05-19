@@ -9,7 +9,9 @@ mod texture;
 // use texture::Texture;
 
 mod vertex;
-use vertex::Point;
+
+mod point;
+use point::Point;
 
 mod camera;
 use camera::*;
@@ -25,6 +27,8 @@ use renderer::*;
 
 mod objects;
 use objects::polygons::*;
+use objects::lines::*;
+use objects::bezier_curves::*;
 
 fn main() {
     let event_loop = EventLoop::new();
@@ -61,6 +65,17 @@ fn main() {
         ],
         Some(String::from("happy-tree.png")),
         None,
+    );
+    let l0 = Line::new(Point{x:-0.3, y:0.3}, Point{x:0.3, y:-0.3}, 0.01, Some(String::from("happy-tree.png")), None);
+
+    let bezier_points = [Point{x:-0.3, y:-0.3}, Point{x: 0.0, y: 0.3}, Point{x: 0.5, y:-0.3}, Point{x:0.15, y:-0.5}, Point{x:-0.2, y:-0.3}, Point{x: 0.2, y:0.2}, Point{x: 0.4, y:0.1}];
+    let l1 = LineStrip::new(
+        &bezier_points,
+        0.01, None, Some(&[0.0,0.0,0.0,1.0])
+    );
+    let b0 = BezierCurve::new(
+        &bezier_points,
+        50, 0.01, None, Some(&[0.0,1.0,1.0,1.0])
     );
 
     event_loop.run(move |event, _, control_flow| {
@@ -117,6 +132,14 @@ fn main() {
                     })
                 );
                 renderer.draw(&t0, None);
+                renderer.draw(&l0, None);
+                let bezier_transform = UsableTransform{
+                    translation: vec2(-0.6,0.6),
+                    scale: vec2(1.0,1.0),
+                    rotation: 0.0,
+                };
+                renderer.draw(&l1, Some(&bezier_transform));
+                renderer.draw(b0.get_line_strip(), Some(&bezier_transform));
                 camera_controller.update_camera(&mut camera);
                 renderer.update(&camera);
                 renderer.end_render();

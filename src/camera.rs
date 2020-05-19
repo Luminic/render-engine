@@ -4,7 +4,7 @@ use winit::{
 
 use cgmath::*;
 
-use super::vertex::*;
+use super::point::*;
 
 macro_rules! create_transformation_matrix {
     ($translation: expr, $scale: expr, $rotation: expr) => {{

@@ -1,9 +1,4 @@
-#[repr(C)]
-#[derive(Copy, Clone, Debug)]
-pub struct Point {
-    pub x: f32,
-    pub y: f32,
-}
+use super::point::Point;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]

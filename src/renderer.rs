@@ -81,7 +81,7 @@ pub struct Renderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
 
-    triangle_render_pipeline: wgpu::RenderPipeline,
+    render_pipeline: wgpu::RenderPipeline,
 
     vertex_buffer: wgpu::Buffer,
     vertex_buffer_write_mapping: wgpu::BufferWriteMapping,
@@ -297,7 +297,7 @@ impl Renderer {
             }
         );
 
-        let triangle_render_pipeline = device.create_render_pipeline(
+        let render_pipeline = device.create_render_pipeline(
             &wgpu::RenderPipelineDescriptor {
                 layout: &render_pipeline_layout,
                 vertex_stage: wgpu::ProgrammableStageDescriptor {
@@ -383,7 +383,7 @@ impl Renderer {
             device,
             queue,
 
-            triangle_render_pipeline,
+            render_pipeline,
 
             vertex_buffer,
             vertex_buffer_write_mapping,
@@ -519,7 +519,7 @@ impl Renderer {
             },
         );
 
-        render_pass.set_pipeline(&self.triangle_render_pipeline);
+        render_pass.set_pipeline(&self.render_pipeline);
         render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
         render_pass.set_bind_group(1, &self.texture_sampler_bind_group, &[]);
         render_pass.set_bind_group(2, &texture_bind_group, &[]);
