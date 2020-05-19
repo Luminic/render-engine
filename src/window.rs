@@ -21,7 +21,7 @@ impl fmt::Display for WindowError {
 }
 
 impl From<wgpu::TimeOut> for WindowError {
-    fn from(err: wgpu::TimeOut) -> WindowError {
+    fn from(_: wgpu::TimeOut) -> WindowError {
         WindowError::TimeOut
     }
 }
@@ -77,8 +77,6 @@ impl Window {
             },
             None => Err(WindowError::UninitializedSwapChain),
         }
-        // self.swap_chain.as_mut().ok_or()
-        // .unwrap().get_next_texture().unwrap()
     }
 
     // Will initialize swapchain if not already initialized
