@@ -7,13 +7,24 @@ use super::helper_functions::gen_tex_coords;
 /*
 Lines are constructed using two triangle primitives to make rectangles
 This is because the primitive LineList doesn't allow users to change line width (stuck a 1 px)
-*/
 
-/*
 Pretty much a non axis aligned Rectangle
+
+Two adjacent line segments  will be connected by another set of indices making a third rectangle
+
+(The line segments should be intersecting at the *, I pulled it apart to make it clearer)
+
 0-----1
 |\    |
 | \   |
+|  \  |        |
+|   \ |        |
+|    \|        |
+3--*--2        | Line direction
+| `-, |        |
+0--*--1        |
+|\    |        |
+| \   |        V
 |  \  |
 |   \ |
 |    \|
@@ -122,7 +133,15 @@ impl LineStrip {
         self.indices.push(vertices_starting_index as u16 +3);
         self.indices.push(vertices_starting_index as u16 +0);
 
-        // TODO: Check for existing vertices and add a connecting quad between the previous vertices and the new vertices
+        // If there is already a line segment connect the two together with another quad
+        if vertices_starting_index >= 4 {
+            self.indices.push(vertices_starting_index as u16 -1);
+            self.indices.push(vertices_starting_index as u16 -2);
+            self.indices.push(vertices_starting_index as u16 +1);
+            self.indices.push(vertices_starting_index as u16 +1);
+            self.indices.push(vertices_starting_index as u16 +0);
+            self.indices.push(vertices_starting_index as u16 -1);
+        }
     }
 
     pub fn new(points: &[Point], width: f32, texture: Option<String>, color: Option<&[f32;4]>) -> Self {

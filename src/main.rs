@@ -78,7 +78,7 @@ fn main() {
     );
     let b0 = BezierCurve::new(
         &bezier_points,
-        1000, 0.01, None, Some(&[0.0,1.0,1.0,1.0])
+        100, 0.01, None, Some(&[0.0,1.0,1.0,1.0])
     );
 
     event_loop.run(move |event, _, control_flow| {
