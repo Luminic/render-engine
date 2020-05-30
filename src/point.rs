@@ -15,6 +15,11 @@ impl Point {
         self.x /= magnitude;
         self.y /= magnitude;
     }
+    // Treats the point like a vector to get its length
+    #[allow(dead_code)]
+    pub fn length(&self) -> f32 {
+        (self.x*self.x + self.y*self.y).powf(0.5)
+    }
 }
 
 // Caution: implementation hell ahead

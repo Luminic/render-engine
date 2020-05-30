@@ -80,6 +80,11 @@ fn main() {
         &bezier_points,
         100, 0.01, None, Some(&[0.0,1.0,1.0,1.0])
     );
+    let b1 = BezierCurves3rdDeg::automatic_control_points(
+        &bezier_points,
+        true,
+        100, 0.01, None, Some(&[1.0,0.0,0.0,1.0])
+    );
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
@@ -145,7 +150,9 @@ fn main() {
                     rotation: 0.0,
                 };
                 renderer.draw(&l1, Some(&bezier_transform));
-                renderer.draw(b0.get_line_strip(), Some(&bezier_transform));
+                // renderer.draw(b0.get_line_strip(), Some(&bezier_transform));
+                b0.draw(&mut renderer, Some(&bezier_transform));
+                b1.draw(&mut renderer, Some(&bezier_transform));
                 renderer.end_render();
             }
             Event::MainEventsCleared => {
